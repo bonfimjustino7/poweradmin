@@ -11,5 +11,13 @@ class MyModelAdmin(PowerModelAdmin):
         else: # Button on list display
             buttons.append(PowerButton(url=u'http://google.com.br/', label=u'Google', attrs={'target': '_blank'}))
         return buttons
+        
+    multi_search = (
+        ('q1', u'Nome', ['nome']), 
+        ('q2', u'Idade', ['idade'])               
+    )
+
+    list_csv = ('nome', 'idade',)
+    list_display = ('nome', 'idade', )
 
 admin.site.register(Aluno, MyModelAdmin)
