@@ -1,26 +1,17 @@
 # -*- coding: utf-8 -*-
 import operator
 from .models import UserAdminConfig
-from django.db import models
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.admin.options import InlineModelAdmin
 from django.contrib.admin.utils import flatten_fieldsets
 from django.conf import settings
-from django.conf.urls import include, url
-from django.core.urlresolvers import resolve
+from django.conf.urls import url
+from django.urls import resolve
 from django.http import HttpResponseRedirect, HttpResponse
-from django.shortcuts import render_to_response
-from django import template
-from django.contrib.contenttypes.models import ContentType
-from django.utils.safestring import mark_safe
-from poweradmin import filters
 from django import forms
 
 import json
 
-from django.utils.text import get_text_list
-from django.utils.translation import ugettext as _
-from django.utils.encoding import force_text
 from django.contrib.auth import get_permission_codename
 
 from .actions import export_as_csv_action, delete_selected, report_action
@@ -49,7 +40,7 @@ class _BaseForm(object):
         for field in self.cleaned_data:
             # py2 and py3
             try:
-               localbasestring = basestring
+               localbasestring = str
             except NameError:
                 # Python 3
                 localbasestring = str
@@ -69,7 +60,8 @@ class PowerModelAdmin(admin.ModelAdmin):
     multi_search_query = {}
     queryset_filter = {}
     form = BaseModelForm
-
+    list_report = ()
+    
     def has_change_permission(self, request, obj=None):
         change = get_permission_codename('change', self.opts) # Alterar
         view = get_permission_codename('view', self.opts) # Visualizar
@@ -123,7 +115,7 @@ class PowerModelAdmin(admin.ModelAdmin):
     def get_header_report(self, request):
         if getattr(self, 'header_report', None):
             return self.header_report
-        return u'<h1>Relatório de %s</h1>' % self.opts.model._meta.verbose_name_plural.capitalize()
+        return u'<h1>Listagem de %s</h1>' % self.opts.model._meta.verbose_name_plural.capitalize()
 
     def get_actions(self, request):
         actions = super(PowerModelAdmin, self).get_actions(request)
@@ -133,10 +125,10 @@ class PowerModelAdmin(admin.ModelAdmin):
         actions['export_as_csv'] = (export_as_csv, 'export_as_csv', export_as_csv.short_description)
 
         # Report
-        report = report_action(fields=self.get_list_report(request), header=self.get_header_report(request))
+        report = report_action(fields=self.get_list_report(request), title=self.get_header_report(request))
         actions['report'] = (report, 'report', report.short_description)
 
-        #Ajustes no log do action delete_selected
+        # Ajustes no log do action delete_selected
         actions['delete_selected'] = (delete_selected, 'delete_selected', delete_selected.short_description)
         return actions
 
@@ -344,8 +336,8 @@ class PowerButton(object):
         return self.url or (self.flag + '/')
 
 
-
 class PowerInlineModelAdmin(InlineModelAdmin):
+
     def has_change_permission(self, request, obj=None):
         change_permission = super(PowerInlineModelAdmin, self).has_change_permission(request, obj) # Alterar
         view = get_permission_codename('view', self.opts) # Visualizar
@@ -353,7 +345,6 @@ class PowerInlineModelAdmin(InlineModelAdmin):
         if obj:
             return change_permission or request.user.has_perm("%s.%s" % (self.opts.app_label, view))
         return change_permission or request.user.has_perm("%s.%s" % (self.opts.app_label, browser))
-
 
     def _all_fields(self, request, obj=None):
         if self.fields:

@@ -6,7 +6,7 @@
         @page {
             size: A4;
             margin: 1cm;
-            margin-top: 4cm;
+            margin-top: 2cm;
             margin-bottom: 2cm;
             @frame footer {
                 -pdf-frame-content: footer;
@@ -29,11 +29,16 @@
         #header {margin-bottom: 10px; text-align: center;}
         #footer {border-top: 1px solid #000; }
         table, tr, td, th {
-            margin: 0;
             padding: 0.05cm;
-            padding-top: 0.15cm;
-            font-size: 12px;
+            padding-top: 0.10cm;
             padding-bottom: -0.05cm;
+        }
+        .table1 td {
+        padding: 1px;
+        text-align: center;
+        }
+        .tr{
+            border-bottom: 1px solid #ddd;
         }
         .row1 td{background: #f0f0f0;}
         .border-top{border-top: 1px #000 solid;}
@@ -47,30 +52,20 @@
     <div id="header">
         <table width="100%">
             <tr>
-                <td>
-                    {{ header|safe }}
-                </td>
+                <td>{{ title|safe }}</td>
             </tr>
         </table>
     </div>
-    <div class="wrapper">
-        <table width="100%">
-            <thead>
-                <tr>
-                    {% for field in results.header %}
-                    <td class="border-top border-bottom"><b>{{ field }}</b></td>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for result in results.results %}
-                <tr class="{% cycle 'row0' 'row1' %}">
-                    {% for field in result %}
-                    <td>{{ field }}</td>
-                    {% endfor %}
-                </tr>
+    <div>
+        <table width="100%" repeat="1">
+            <tr>
+                {% for field in header %}
+                    {{ field | safe }}
                 {% endfor %}
-            </tbody>
+            </tr>
+            {% for linha in linhas %}
+            <tr>{{ linha | safe }}</tr>
+            {% endfor %}
         </table>
     </div>
     <div id="footer">

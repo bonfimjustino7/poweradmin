@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import unicodecsv as csv
+import io
+import os
+
+from django.conf import settings
 from django.http import HttpResponse
 from django.contrib import messages
 from django.contrib.admin import helpers
@@ -14,15 +17,18 @@ from django.contrib.admin.utils import label_for_field, display_for_field, displ
 
 from django.template.loader import get_template
 from django.template import RequestContext
-import cStringIO as StringIO
+from io import StringIO
 import cgi
-from xhtml2pdf.pisa import pisaDocument
 
+import csv
+# from xhtml2pdf.pisa import pisaDocument
+from xhtml2pdf.document import pisaDocument
+from .stdlib import nvl
 
 def export_as_csv_action(description=u"Exportar CSV", fields=None, header=True):
     def export_as_csv(modeladmin, request, queryset):
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename=%s.csv' % unicode(modeladmin.opts).replace('.', '_')
+        response['Content-Disposition'] = 'attachment; filename=%s.csv' % modeladmin.opts.db_table
 
         writer = csv.writer(response)
         if header:
@@ -59,21 +65,41 @@ def export_as_csv_action(description=u"Exportar CSV", fields=None, header=True):
     return export_as_csv
 
 
-def report_action(description=u"Impressão", fields=None, header='', template_name='admin/report.html'):
+def report_action(description=u"Impressão", fields=None, title='', template_name='admin/report.html'):
+
     def report(modeladmin, request, queryset):
-        results = {'header': [], 'results': []}
-        for field_name in fields:
+        header = []
+        linhas = []
+        style = []
+        for field in fields:
+            field_detail = field.split(':')
+            field_name = field_detail[0]
             text, attr = label_for_field(
                 field_name, modeladmin.model,
                 model_admin=modeladmin,
                 return_attr=True
             )
-            results['header'].append(text.capitalize())
+
+            if len(fields) < 3:
+                align = "text-align: %s;" % 'left'
+                width = '"width: %s; %s"' % ('400px', align)
+            else:
+                align = "text-align: %s;" % (field_detail[2] if len(field_detail) > 2 else 'center')
+                width = '"width: %s; %s"' % (field_detail[1] if len(field_detail) > 1 else '300px', align)
+
+
+            style.append(width)
+
+            header.append('<th class="border-top border-bottom" style=%s><b>%s</b></th>' % (width,text))
 
         for obj in queryset:
-            line = []
-            for field_name in fields:
+            line = ''
+            fieldno = 0
+            for field in fields:
+                field_detail = field.split(':')
+                field_name = field_detail[0]
                 f, attr, value = lookup_field(field_name, obj, modeladmin)
+                #print(f, attr, value)
                 if f is None or f.auto_created:
                     boolean = getattr(attr, 'boolean', False)
                     result_repr = display_for_value(value, boolean)
@@ -81,26 +107,23 @@ def report_action(description=u"Impressão", fields=None, header='', template_na
                     if isinstance(f.rel, models.ManyToOneRel):
                         field_val = getattr(obj, f.name)
                         if field_val is None:
-                            result_repr = '-'
+                            result_repr = ' '
                         else:
                             result_repr = field_val
                     else:
-                        result_repr = display_for_field(value, f, '-')
-                line.append(strip_tags(u'%s' % result_repr))
-            results['results'].append(line)
-
-
+                        result_repr = display_for_field(value, f, None)
+                result_repr = nvl(strip_tags(result_repr), ' ')
+                line += '<td style=%s>%s</td>' % (style[fieldno], result_repr)
+                fieldno += 1
+            linhas.append(line)
+        print(linhas)
         template = get_template(template_name)
-        html  = template.render(RequestContext(request, {
-            'header': header,
-            'results': results,
-        }))
-        #return HttpResponse(html)
-        result = StringIO.StringIO()
-        pdf = pisaDocument(StringIO.StringIO(html.encode("UTF-8")), dest=result, link_callback=lambda uri, rel: os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, "")))
+        html = template.render({'title': title, 'header': header, 'linhas': linhas, })
+        result = io.BytesIO()
+        pdf = pisaDocument(io.BytesIO(html.encode("UTF-8")), dest=result, link_callback=lambda uri, rel: os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, "")))
         if not pdf.err:
             return HttpResponse(result.getvalue(), content_type='application/pdf')
-        return HttpResponse('We had some errors<pre>%s</pre>' % cgi.escape(html))
+        return HttpResponse('Erro na geração do relatório<pre>%s</pre>' % cgi.escape(html))
     report.short_description = description
     return report
 
